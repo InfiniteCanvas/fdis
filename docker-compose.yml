@@ -1,0 +1,6 @@
+﻿services:
+  fdis:
+    image: fdis
+    build:
+      context: .
+      dockerfile: fdis/Dockerfile

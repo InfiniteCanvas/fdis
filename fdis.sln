@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "fdis", "fdis\fdis.csproj", "{BA14B92F-9531-41FD-82DE-6F013682191C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BA14B92F-9531-41FD-82DE-6F013682191C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA14B92F-9531-41FD-82DE-6F013682191C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA14B92F-9531-41FD-82DE-6F013682191C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA14B92F-9531-41FD-82DE-6F013682191C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
