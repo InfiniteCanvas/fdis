@@ -1,6 +1,8 @@
 ﻿using System.Threading.Channels;
 using fdis.Consumers;
+using fdis.Data;
 using fdis.Interfaces;
+using fdis.Middlewares;
 using fdis.Producers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -14,8 +16,9 @@ namespace fdis
     {
         public static  IConfiguration Configuration;
         private static string         _testPath = @"D:\Repos\C#\fdis\samples";
+        private static bool           _error;
 
-        private static async Task Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.ClearProviders()
@@ -34,32 +37,21 @@ namespace fdis
             });
 
             var producer = new FileReader();
+            await SetupProducer(producer, producerChannel, _testPath);
 
-            Console.WriteLine($"Reading from {_testPath}");
-            var files = await producer.GetFiles(_testPath);
-
-            for (int i = 0; i < files.Length; i++)
-            {
-                var file = files.Span[i];
-                Console.WriteLine($"Pushing file {file.Path} into producer");
-                await producerChannel.Writer.WriteAsync(file);
-            }
-
-            producerChannel.Writer.Complete();
+            var middle = new FileCompressor();
+            var middleChannel = await SetupMiddlewares(producerChannel, default);
 
             var consumer = new FileWriter();
+            await SetupConsumer(consumer, middleChannel);
 
-            await foreach (var contentInfo in producerChannel.Reader.ReadAllAsync())
-            {
-                var result = await consumer.Consume(contentInfo);
-                Console.WriteLine($"Result {result.Status}, {result.Info}");
-            }
+            return _error ? 1 : 0;
         }
 
         private static async ValueTask FillProducerChannel(IProducer            producer,
-                                                       string               sourceUri,
-                                                       Channel<ContentInfo> channel,
-                                                       CancellationToken    cancellationToken = default)
+                                                           string               sourceUri,
+                                                           Channel<ContentInfo> channel,
+                                                           CancellationToken    cancellationToken = default)
         {
             var files = await producer.GetFiles(sourceUri, cancellationToken);
             for (var index = 0; index < files.Span.Length; index++)
@@ -67,6 +59,7 @@ namespace fdis
                 var file = files.Span[index];
                 await channel.Writer.WriteAsync(file, cancellationToken);
             }
+
             channel.Writer.Complete();
         }
 
@@ -83,6 +76,49 @@ namespace fdis
                          .AddCommandLine(args);
 
             Configuration = builder.Build();
+        }
+
+        private static async ValueTask SetupProducer(IProducer            producer,
+                                                     Channel<ContentInfo> channel,
+                                                     string               sourceUri,
+                                                     CancellationToken    cancellationToken = default)
+        {
+            var results = await producer.ProvideData(sourceUri, channel, cancellationToken);
+            foreach (var result in results)
+            {
+                Console.WriteLine(result);
+            }
+        }
+
+        private static async ValueTask SetupConsumer(IConsumer consumer, Channel<ContentInfo> channel, CancellationToken cancellationToken = default)
+        {
+            var results = await consumer.ConsumeData(channel, cancellationToken);
+            foreach (var result in results)
+            {
+                Console.WriteLine(result);
+                if (result.Status == Result.ResultStatus.Error)
+                    Program._error = true;
+            }
+        }
+
+        private static async ValueTask<Channel<ContentInfo>> SetupMiddlewares(Channel<ContentInfo> sourceChannel,
+                                                                              CancellationToken    cancellationToken = default,
+                                                                              params IMiddleWare[] middleWares)
+        {
+            var lastChannel = sourceChannel;
+            for (int i = 0; i < middleWares.Length; i++)
+            {
+                var middleware = middleWares[i];
+                var targetChannel =
+                    Channel.CreateUnbounded<ContentInfo>(new UnboundedChannelOptions
+                    {
+                        SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = true
+                    });
+                await middleware.ProcessData(sourceChannel, targetChannel, cancellationToken);
+                lastChannel = targetChannel;
+            }
+
+            return lastChannel;
         }
     }
 }

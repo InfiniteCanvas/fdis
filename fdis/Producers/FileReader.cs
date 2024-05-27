@@ -1,4 +1,6 @@
-﻿using fdis.Interfaces;
+﻿using System.Threading.Channels;
+using fdis.Data;
+using fdis.Interfaces;
 
 namespace fdis.Producers
 {
@@ -33,6 +35,36 @@ namespace fdis.Producers
             }
 
             return ValueTask.FromResult(new ReadOnlyMemory<ContentInfo>(result));
+        }
+
+        public async ValueTask<List<Result>> ProvideData(string               sourceUri,
+                                                         Channel<ContentInfo> producerChannel,
+                                                         CancellationToken    cancellationToken = default)
+        {
+            if (!Path.Exists(sourceUri))
+                return [Result.Error($"Couldn't find {sourceUri}")];
+
+            var offset = Path.GetFullPath(sourceUri).Length + 1;
+            var filePaths = Directory.GetFiles(sourceUri, "*", SearchOption.AllDirectories);
+            var results = new List<Result>(filePaths.Length);
+            Console.WriteLine(string.Join(", ", filePaths));
+
+            foreach (var filePath in filePaths)
+            {
+                var contentInfo = new ContentInfo
+                {
+                    Path = filePath,
+                    FileName = filePath[offset..],
+                    Size = new FileInfo(filePath).Length,
+                    FileExtension = Path.GetExtension(filePath)
+                };
+                await producerChannel.Writer.WriteAsync(contentInfo,
+                                                        cancellationToken);
+                results.Add(Result.Success($"Content found {contentInfo}"));
+            }
+
+            producerChannel.Writer.Complete();
+            return results;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using fdis.Data;
+﻿using System.Threading.Channels;
+using fdis.Data;
 using fdis.Interfaces;
 
 namespace fdis.Consumers
@@ -18,6 +19,18 @@ namespace fdis.Consumers
             await File.WriteAllBytesAsync(savePath, data, cancellationToken);
 
             return Result.Success($"{contentInfos.Path} copied to {savePath}");
+        }
+
+        public async ValueTask<List<Result>> ConsumeData(Channel<ContentInfo> contentChannel, CancellationToken cancellationToken = default)
+        {
+            var results = new List<Result>();
+            await foreach (var contentInfo in contentChannel.Reader.ReadAllAsync(cancellationToken))
+            {
+                var result = await Consume(contentInfo, cancellationToken);
+                results.Add(result);
+            }
+
+            return results;
         }
     }
 }
