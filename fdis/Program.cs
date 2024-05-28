@@ -1,124 +1,99 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using fdis.Consumers;
 using fdis.Data;
 using fdis.Interfaces;
 using fdis.Middlewares;
 using fdis.Producers;
+using fdis.Workers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Utf8StringInterpolation;
 using ZLogger;
+using ZLogger.Formatters;
 using ZLogger.Providers;
 
 namespace fdis
 {
     internal class Program
     {
-        public static  IConfiguration Configuration;
-        private static string         _testPath = @"D:\Repos\C#\fdis\samples";
-        private static bool           _error;
+        private static bool _error;
 
-        private static async Task<int> Main(string[] args)
+        [RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
+        [RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
+        private static async Task Main(string[] args)
         {
+            var cts = new CancellationTokenSource();
+            var settings = new AppSettings();
+            new ConfigurationBuilder()
+               .SetBasePath(Directory.GetCurrentDirectory())
+               .AddJsonFile("config.json", optional: true, reloadOnChange: true)
+               .AddCommandLine(args)
+               .Build()
+               .Bind(settings);
+
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.ClearProviders()
-                   .SetMinimumLevel(LogLevel.Debug)
-                   .AddZLoggerConsole()
-                   .AddZLoggerRollingFile((offset, i) => Path.Combine(Directory.GetCurrentDirectory(), $"{offset.Date:yyMMdd}_{i}.log"),
-                                          RollingInterval.Month);
+                   .SetMinimumLevel(LogLevel.Information)
+                   .AddZLoggerConsole(options =>
+                                      {
+                                          options.UsePlainTextFormatter(ConsoleFormatter);
+                                      })
+                   .AddZLoggerRollingFile(options =>
+                                          {
+                                              options.FilePathSelector = (offset, i) => $"{offset:yyMMdd}_{i}.log";
+                                              options.RollingInterval = RollingInterval.Day;
+                                              options.RollingSizeKB = 1024 * 10;
+                                              options.UsePlainTextFormatter(TextFileFormatter);
+                                          });
 
-            AddConfig(args);
+            builder.Services.AddSingleton(settings);
+            builder.Services.AddSingleton(cts);
+            builder.Services.AddKeyedSingleton<IProducer, FileReader>("FileReader");
+            builder.Services.AddKeyedSingleton<IMiddleWare, FileArchiver>("FileArchiver");
+            builder.Services.AddKeyedSingleton<IConsumer, FileWriter>("FileWriter");
+            builder.Services.AddSingleton<SemaphoreSlim>(provider =>
+                                                         {
+                                                             var config = provider.GetService<AppSettings>();
+                                                             return config != null ? new SemaphoreSlim(config.Threads) : new SemaphoreSlim(1);
+                                                         });
 
-            var producerChannel = Channel.CreateUnbounded<ContentInfo>(new UnboundedChannelOptions
-            {
-                SingleReader = false,
-                SingleWriter = true,
-                AllowSynchronousContinuations = false
-            });
+            builder.Services.AddHostedService<Main>();
+            var host = builder.Build();
 
-            var producer = new FileReader();
-            await SetupProducer(producer, producerChannel, _testPath);
-
-            var middle = new FileCompressor();
-            var middleChannel = await SetupMiddlewares(producerChannel, default);
-
-            var consumer = new FileWriter();
-            await SetupConsumer(consumer, middleChannel);
-
-            return _error ? 1 : 0;
+            await host.RunAsync(token: cts.Token);
         }
 
-        private static async ValueTask FillProducerChannel(IProducer            producer,
-                                                           string               sourceUri,
-                                                           Channel<ContentInfo> channel,
-                                                           CancellationToken    cancellationToken = default)
+        private static void TextFileFormatter(PlainTextZLoggerFormatter formatter)
         {
-            var files = await producer.GetFiles(sourceUri, cancellationToken);
-            for (var index = 0; index < files.Span.Length; index++)
-            {
-                var file = files.Span[index];
-                await channel.Writer.WriteAsync(file, cancellationToken);
-            }
-
-            channel.Writer.Complete();
+            formatter.SetPrefixFormatter($"[{0}|{1}]",
+                                         (in MessageTemplate template,
+                                          in LogInfo         info) => template.Format(info.Timestamp,
+                                                                                      info.LogLevel));
+            formatter.SetSuffixFormatter($" |{0}.{1}|",
+                                         (in MessageTemplate template,
+                                          in LogInfo         info) => template.Format(info.Category, info.MemberName));
+            formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
+                                                                              $"{ex.Message}"));
         }
 
-        private static void AddConfig(string[] args)
+        private static void ConsoleFormatter(PlainTextZLoggerFormatter formatter)
         {
-            var defaults = new Dictionary<string, string>();
-            defaults.Add("SaveFolder", Path.Combine(Directory.GetCurrentDirectory(), "files"));
-            defaults.Add("Threads",    "1");
-
-            var builder = new ConfigurationBuilder()
-                         .AddInMemoryCollection(defaults!)
-                         .SetBasePath(Directory.GetCurrentDirectory())
-                         .AddJsonFile("config.json", optional: true, reloadOnChange: true)
-                         .AddCommandLine(args);
-
-            Configuration = builder.Build();
-        }
-
-        private static async ValueTask SetupProducer(IProducer            producer,
-                                                     Channel<ContentInfo> channel,
-                                                     string               sourceUri,
-                                                     CancellationToken    cancellationToken = default)
-        {
-            var results = await producer.ProvideData(sourceUri, channel, cancellationToken);
-            foreach (var result in results)
-            {
-                Console.WriteLine(result);
-            }
-        }
-
-        private static async ValueTask SetupConsumer(IConsumer consumer, Channel<ContentInfo> channel, CancellationToken cancellationToken = default)
-        {
-            var results = await consumer.ConsumeData(channel, cancellationToken);
-            foreach (var result in results)
-            {
-                Console.WriteLine(result);
-                if (result.Status == Result.ResultStatus.Error)
-                    Program._error = true;
-            }
-        }
-
-        private static async ValueTask<Channel<ContentInfo>> SetupMiddlewares(Channel<ContentInfo> sourceChannel,
-                                                                              CancellationToken    cancellationToken = default,
-                                                                              params IMiddleWare[] middleWares)
-        {
-            var lastChannel = sourceChannel;
-            for (int i = 0; i < middleWares.Length; i++)
-            {
-                var middleware = middleWares[i];
-                var targetChannel =
-                    Channel.CreateUnbounded<ContentInfo>(new UnboundedChannelOptions
-                    {
-                        SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = true
-                    });
-                await middleware.ProcessData(sourceChannel, targetChannel, cancellationToken);
-                lastChannel = targetChannel;
-            }
-
-            return lastChannel;
+            formatter.SetPrefixFormatter($"[{0}|{1}][{2}] ",
+                                         (in MessageTemplate template,
+                                          in LogInfo         info) => template.Format(info.Timestamp.Local.ToString("hh:mm:ss"),
+                                                                                      info.LogLevel,
+                                                                                      Encoding.UTF8.GetString(info.Category.Utf8Span[(info.Category
+                                                                                             .Utf8Span
+                                                                                             .LastIndexOf((byte)'.')
+                                                                                        + 1)..])));
+            formatter.SetSuffixFormatter($" [{0}]",
+                                         (in MessageTemplate template,
+                                          in LogInfo         info) => template.Format(info.MemberName));
+            formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
+                                                                              $"{ex.Message}"));
         }
     }
 }

@@ -1,24 +1,27 @@
 ﻿using System.Threading.Channels;
 using fdis.Data;
 using fdis.Interfaces;
+using fdis.Utilities;
+using Microsoft.Extensions.Logging;
+using ZLogger;
 
 namespace fdis.Consumers
 {
-    public class FileWriter : IConsumer
+    public class FileWriter(ILogger<FileWriter> logger, AppSettings settings) : IConsumer
     {
         public async ValueTask<Result> Consume(ContentInfo contentInfos, CancellationToken cancellationToken = default)
         {
-            var saveFolder = Program.Configuration["SaveFolder"] ?? Directory.GetCurrentDirectory();
-            Console.WriteLine($"Consuming {contentInfos}");
-            if (!File.Exists(contentInfos.Path))
-                return Result.Error($"{contentInfos.Path} doesn't exist");
+            var saveFolder = Path.Combine(settings.SaveFolder, contentInfos.FolderRelativeToSource);
+            logger.ZLogDebug($"Consuming {contentInfos.FileName}[{contentInfos.FilePath}]");
+            if (!File.Exists(contentInfos.FilePath))
+                return Result.Error($"{contentInfos.FilePath} doesn't exist");
 
-            var data = await File.ReadAllBytesAsync(contentInfos.Path, cancellationToken);
-            var savePath = Path.Combine(saveFolder, contentInfos.FileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(savePath));
+            var data = await File.ReadAllBytesAsync(contentInfos.FilePath, cancellationToken);
+            var savePath = Path.Combine(saveFolder, contentInfos.FileName).GetFullPath();
+            Directory.CreateDirectory(saveFolder);
             await File.WriteAllBytesAsync(savePath, data, cancellationToken);
 
-            return Result.Success($"{contentInfos.Path} copied to {savePath}");
+            return Result.Success($"{contentInfos.FilePath} copied to {savePath}");
         }
 
         public async ValueTask<List<Result>> ConsumeData(Channel<ContentInfo> contentChannel, CancellationToken cancellationToken = default)
@@ -30,7 +33,15 @@ namespace fdis.Consumers
                 results.Add(result);
             }
 
+            logger.ZLogInformation($"Wrote {results.Count} files to {settings.SaveFolder}");
             return results;
         }
+
+        public void Dispose()
+        {
+            // TODO release managed resources here
+        }
+
+        public string Name => nameof(FileWriter);
     }
 }

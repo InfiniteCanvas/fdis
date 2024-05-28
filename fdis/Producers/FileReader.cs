@@ -1,41 +1,14 @@
 ﻿using System.Threading.Channels;
 using fdis.Data;
 using fdis.Interfaces;
+using Microsoft.Extensions.Logging;
+using ZLogger;
 
 namespace fdis.Producers
 {
-    public class FileReader : IProducer
+    public class FileReader(ILogger<FileReader> logger) : IProducer
     {
         public void Dispose() { }
-
-        public ValueTask<ReadOnlyMemory<ContentInfo>> GetFiles(string sourceUri, CancellationToken cancellationToken = default)
-        {
-            if (!Path.Exists(sourceUri))
-            {
-                Console.WriteLine($"Couldn't find {sourceUri}");
-                return ValueTask.FromResult(new ReadOnlyMemory<ContentInfo>([]));
-            }
-
-            var offset = Path.GetFullPath(sourceUri).Length + 1;
-            var filePaths = Directory.GetFiles(sourceUri, "*", SearchOption.AllDirectories);
-            Console.WriteLine(string.Join(", ", filePaths));
-            var result = new ContentInfo[filePaths.Length];
-
-            for (var index = 0; index < filePaths.Length; index++)
-            {
-                var filePath = filePaths[index];
-                Console.WriteLine($"Content found {filePath}");
-                result[index] = new ContentInfo
-                {
-                    Path = filePath,
-                    FileName = filePath[offset..],
-                    Size = new FileInfo(filePath).Length,
-                    FileExtension = Path.GetExtension(filePath)
-                };
-            }
-
-            return ValueTask.FromResult(new ReadOnlyMemory<ContentInfo>(result));
-        }
 
         public async ValueTask<List<Result>> ProvideData(string               sourceUri,
                                                          Channel<ContentInfo> producerChannel,
@@ -44,27 +17,48 @@ namespace fdis.Producers
             if (!Path.Exists(sourceUri))
                 return [Result.Error($"Couldn't find {sourceUri}")];
 
-            var offset = Path.GetFullPath(sourceUri).Length + 1;
+            if (Directory.Exists(sourceUri))
+                return await ProcessDirectory(sourceUri, producerChannel, cancellationToken);
+
+
+            var content = new ContentInfo
+            {
+                FilePath = sourceUri, FileName = Path.GetFileName(sourceUri), FolderRelativeToSource = "", Size = new FileInfo(sourceUri).Length
+            };
+            await producerChannel.Writer.WriteAsync(content, cancellationToken);
+
+            return [Result.Success($"Read file: {content.FilePath}")];
+        }
+
+        private async ValueTask<List<Result>> ProcessDirectory(string               sourceUri,
+                                                               Channel<ContentInfo> producerChannel,
+                                                               CancellationToken    cancellationToken)
+        {
             var filePaths = Directory.GetFiles(sourceUri, "*", SearchOption.AllDirectories);
             var results = new List<Result>(filePaths.Length);
-            Console.WriteLine(string.Join(", ", filePaths));
+            logger.ZLogTrace($"{string.Join(", ", filePaths)}");
 
             foreach (var filePath in filePaths)
             {
+                var folderRelativeToSource = Path.GetRelativePath(sourceUri, Path.GetDirectoryName(filePath) ?? filePath);
                 var contentInfo = new ContentInfo
                 {
-                    Path = filePath,
-                    FileName = filePath[offset..],
+                    FilePath = filePath,
+                    FileName = Path.GetFileName(filePath),
                     Size = new FileInfo(filePath).Length,
-                    FileExtension = Path.GetExtension(filePath)
+                    FolderRelativeToSource = folderRelativeToSource
                 };
                 await producerChannel.Writer.WriteAsync(contentInfo,
                                                         cancellationToken);
-                results.Add(Result.Success($"Content found {contentInfo}"));
+                logger.ZLogDebug($"Content read {contentInfo.FilePath}");
+                results.Add(Result.Success($"Content found {contentInfo.FilePath}"));
             }
 
             producerChannel.Writer.Complete();
+            logger.ZLogInformation($"Read {filePaths.Length} items from {sourceUri}");
             return results;
         }
+
+        public string Name => nameof(FileReader);
     }
 }

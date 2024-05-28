@@ -1,8 +1,12 @@
 ﻿{
-  "SaveFolder": "d:\\test",
-  "Provider": "File",
-  "Consumer": "File",
+  "Source": "D:\\Repos\\C#\\fdis\\samples",
+  "SaveFolder": "d:\\test\\output",
+  "Provider": "FileReader",
+  "Consumers": [
+    "FileWriter"
+  ],
+  "Threads": 1,
   "Middlewares": [
-    "Compress"
+    "FileArchiver"
   ]
 }

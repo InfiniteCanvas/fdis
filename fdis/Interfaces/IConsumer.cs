@@ -3,7 +3,7 @@ using fdis.Data;
 
 namespace fdis.Interfaces
 {
-    public interface IConsumer
+    public interface IConsumer : IDisposable, INamed
     {
         public ValueTask<Result> Consume(ContentInfo contentInfos, CancellationToken cancellationToken = default);
 
