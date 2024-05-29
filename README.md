@@ -13,7 +13,7 @@ Overwrites:
 
 ```json
 {
-  "Source": "Z:\\source\\folder",
+  "Source": "D:\\Repos\\C#\\fdis\\samples",
   "Threads": 1,
   "Provider": {
     "Type": "FileReader",
@@ -24,7 +24,7 @@ Overwrites:
     {
       "Type": "FileWriter",
       "Options": {
-        "SaveFolder": "D:\\output",
+        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
         "BufferSize": 81920
       }
     }
@@ -33,29 +33,28 @@ Overwrites:
     {
       "Type": "FileFilter",
       "Options": {
-        "Regex": ".*\\.(wav|m4a|mp3|ogg|flac)",
-        "Mode": "Reject"
+        "Regex": ".*",
+        "Mode": "Allow"
       }
     },
     {
-      "Type": "FileArchiver",
+      "Type": "FileSorter",
       "Options": {
-        "Regex": ".*\\.(jpg|jpeg|png|gif)$",
-        "ArchiveName": "pics.zip"
+        "Regex": ".*\\.jpg",
+        "Subfolder": "jpg\\"
       }
     },
     {
-      "Type": "FileArchiver",
+      "Type": "FilePathCollisionSolver",
       "Options": {
-        "Regex": ".*\\.(mov|mp4|mkv|webm|avi)$",
-        "ArchiveName": "vods.zip"
+        "Mode": "Rename"
       }
     },
     {
       "Type": "FileArchiver",
       "Options": {
         "Regex": "^(?!.*\\.zip$).*$",
-        "ArchiveName": "rest.zip"
+        "ArchiveName": "unarchivedFiles.zip"
       }
     }
   ]
@@ -82,6 +81,13 @@ Defaults are in ``[default]``
         - ``Mode["Allow"]``
             - 'Allow' will let matched files through and reject everything else
             - 'Reject' will block matched files and let everything else through
+    - ``FileSorter``
+        - sorts matched files into specified subfolder
+        - ``Regex`` for matching files
+        - ``Subfolder`` change a matched item's subfolder to this
+    - ``FilePathCollisionSolver``
+        - looks for items that have the same subfolder & file name
+        - ``Mode["Remove"]`` ``Rename`` renames items that collide, ``Remove`` removes items that collide so that only 1 remains
 - Consumers
     - ``FileWriter``
         - Writes items to ``SaveFolder``

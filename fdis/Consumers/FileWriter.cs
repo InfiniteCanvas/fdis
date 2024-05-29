@@ -12,15 +12,24 @@ namespace fdis.Consumers
         private const int    _DEFAULT_BUFFER_SIZE = 81920;
         private       int    _bufferSize          = _DEFAULT_BUFFER_SIZE;
         private       string _saveFolder          = Directory.GetCurrentDirectory().Combine("output");
+        private       bool   _rename              = true;
 
         public IConsumer Configure(Dictionary<string, string> options)
         {
             _saveFolder = options["SaveFolder"];
-            if (!options.ContainsKey("BufferSize") || !int.TryParse(options["BufferSize"], out _bufferSize))
+            if (!options.TryGetValue("BufferSize", out var value) || !int.TryParse(value, out _bufferSize))
             {
                 logger.ZLogWarning($"BufferSize not set for {Name}, defaulting to 81920");
                 _bufferSize = _DEFAULT_BUFFER_SIZE;
             }
+
+            if (!options.TryGetValue("Mode", out var mode))
+            {
+                logger.ZLogWarning($"No mode specified. Defaulting to 'Overwrite'");
+                mode = "Overwrite";
+            }
+
+            _rename = mode.Equals("Rename", StringComparison.InvariantCultureIgnoreCase);
 
             return this;
         }
@@ -54,6 +63,13 @@ namespace fdis.Consumers
 
             var savePath = Path.Combine(saveFolder, contentInfo.FileName).GetFullPath();
             Directory.CreateDirectory(saveFolder);
+
+            if (Path.Exists(savePath) && _rename)
+            {
+                var filename = Path.GetFileNameWithoutExtension(savePath);
+                var ext = Path.GetExtension(savePath);
+                savePath = Path.Combine(saveFolder, $"{filename}_{Path.GetRandomFileName()}.{ext}");
+            }
 
             await using (var sourceStream = File.OpenRead(contentInfo.FilePath))
             {

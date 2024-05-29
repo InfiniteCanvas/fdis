@@ -6,15 +6,6 @@
     "Options": {
     }
   },
-  "Consumers": [
-    {
-      "Type": "FileWriter",
-      "Options": {
-        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
-        "BufferSize": 81920
-      }
-    }
-  ],
   "Middlewares": [
     {
       "Type": "FileFilter",
@@ -24,24 +15,33 @@
       }
     },
     {
-      "Type": "FileArchiver",
+      "Type": "FileSorter",
       "Options": {
-        "Regex": ".*\\.(jpg|jpeg|png|gif)$",
-        "ArchiveName": "pics.zip"
+        "Regex": ".*\\.jpg",
+        "Subfolder": "jpg\\"
       }
     },
     {
-      "Type": "FileArchiver",
+      "Type": "FilePathCollisionSolver",
       "Options": {
-        "Regex": ".*\\.(mov|mp4|mkv|webm|avi)$",
-        "ArchiveName": "vods.zip"
+        "Mode": "Rename"
       }
     },
     {
       "Type": "FileArchiver",
       "Options": {
         "Regex": "^(?!.*\\.zip$).*$",
-        "ArchiveName": "rest.zip"
+        "ArchiveName": "unarchivedFiles.zip"
+      }
+    }
+  ],
+  "Consumers": [
+    {
+      "Type": "FileWriter",
+      "Options": {
+        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
+        "BufferSize": 81920,
+        "Mode": "Rename"
       }
     }
   ]

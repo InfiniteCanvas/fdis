@@ -57,13 +57,13 @@ namespace fdis.Middlewares
                 {
                     if (_allow)
                     {
-                        logger.ZLogTrace($"{contentInfo} allowed by {this}");
+                        logger.ZLogDebug($"{contentInfo} allowed by {this}");
                         await targetChannel.Writer.WriteAsync(contentInfo, cancellationToken);
                         results.Add(Result.Success($"Allowed file: {contentInfo.FileName}"));
                     }
                     else
                     {
-                        logger.ZLogTrace($"{contentInfo} blocked by {this}");
+                        logger.ZLogDebug($"{contentInfo} blocked by {this}");
                         results.Add(Result.Failure($"Blocked file: {contentInfo.FileName}"));
                     }
                 }
@@ -71,12 +71,12 @@ namespace fdis.Middlewares
                 {
                     if (_allow)
                     {
-                        logger.ZLogTrace($"{contentInfo} blocked by {this}");
+                        logger.ZLogDebug($"{contentInfo} blocked by {this}");
                         results.Add(Result.Failure($"Blocked file: {contentInfo.FileName}"));
                     }
                     else
                     {
-                        logger.ZLogTrace($"{contentInfo} allowed by {this}");
+                        logger.ZLogDebug($"{contentInfo} allowed by {this}");
                         await targetChannel.Writer.WriteAsync(contentInfo, cancellationToken);
                         results.Add(Result.Success($"Allowed file: {contentInfo.FileName}"));
                     }
