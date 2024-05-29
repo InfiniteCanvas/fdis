@@ -11,8 +11,8 @@ namespace fdis.Consumers
     {
         private const int    _DEFAULT_BUFFER_SIZE = 81920;
         private       int    _bufferSize          = _DEFAULT_BUFFER_SIZE;
-        private       string _saveFolder          = Directory.GetCurrentDirectory().Combine("output");
         private       bool   _rename              = true;
+        private       string _saveFolder          = Directory.GetCurrentDirectory().Combine("output");
 
         public IConsumer Configure(Dictionary<string, string> options)
         {

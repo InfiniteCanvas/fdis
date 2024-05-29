@@ -43,6 +43,7 @@ namespace fdis
             builder.Services.AddKeyedTransient<IMiddleWare, FileFilter>("FileFilter");
             builder.Services.AddKeyedTransient<IMiddleWare, FileSorter>("FileSorter");
             builder.Services.AddKeyedTransient<IMiddleWare, FilePathCollisionSolver>("FilePathCollisionSolver");
+            builder.Services.AddKeyedTransient<IMiddleWare, DeduplicateFiles>("DeduplicateFiles");
             builder.Services.AddKeyedTransient<IConsumer, FileWriter>("FileWriter");
             builder.Services.AddSingleton<SemaphoreSlim>(provider =>
                                                          {

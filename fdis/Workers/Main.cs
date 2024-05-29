@@ -45,6 +45,7 @@ namespace fdis.Workers
             var middlewareCounter = 0;
             middleChannels[0] = sourceChannel;
             if (_middlewares.Length > 0)
+            {
                 foreach (var middleware in _middlewares)
                 {
                     middlewareCounter++;
@@ -62,9 +63,11 @@ namespace fdis.Workers
                              stoppingToken)
                         .AddTo(tasks);
                 }
+            }
 
             // consumers
             foreach (var consumer in _consumers)
+            {
                 Task.Run(async () =>
                          {
                              foreach (var result in await consumer.ConsumeData(middleChannels[middlewareCounter], stoppingToken)
@@ -73,6 +76,7 @@ namespace fdis.Workers
                          },
                          stoppingToken)
                     .AddTo(tasks);
+            }
 
             await Task.WhenAll(tasks);
             logger.ZLogInformation($"Done with all tasks. Shutting down..");

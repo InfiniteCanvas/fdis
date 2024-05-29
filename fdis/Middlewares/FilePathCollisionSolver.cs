@@ -48,9 +48,7 @@ namespace fdis.Middlewares
                         await targetChannel.Writer.WriteAsync(content with { FileName = renamed }, cancellationToken);
                     }
                     else
-                    {
                         logger.ZLogWarning($"{content.FileName} collided, removing it");
-                    }
                 }
                 else
                 {
@@ -60,7 +58,7 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
-            return [Result.Success($"{set.Count + collisions} files processed, {collisions} solved"),];
+            return [Result.Success($"{set.Count + collisions} files processed, {collisions} solved")];
         }
 
         private class PathSorter : IComparer<ContentInfo>

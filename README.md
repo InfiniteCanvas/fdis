@@ -45,6 +45,13 @@ Overwrites:
       }
     },
     {
+      "Type": "DeduplicateFiles",
+      "Options": {
+        "BufferSize": 64,
+        "Scans": 5
+      }
+    },
+    {
       "Type": "FilePathCollisionSolver",
       "Options": {
         "Mode": "Rename"
@@ -88,6 +95,8 @@ Defaults are in ``[default]``
     - ``FilePathCollisionSolver``
         - looks for items that have the same subfolder & file name
         - ``Mode["Remove"]`` ``Rename`` renames items that collide, ``Remove`` removes items that collide so that only 1 remains
+    - ``DeduplicateFiles``
+        - looks for items that have the same file content by comparing probes of ``BufferSize``, ``Scans`` times
 - Consumers
     - ``FileWriter``
         - Writes items to ``SaveFolder``

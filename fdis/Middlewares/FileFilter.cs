@@ -53,6 +53,7 @@ namespace fdis.Middlewares
         {
             var results = new List<Result>();
             await foreach (var contentInfo in sourceChannel.Reader.ReadAllAsync(cancellationToken))
+            {
                 if (_regex.IsMatch(contentInfo.FolderRelativeToSource.Combine(contentInfo.FileName)))
                 {
                     if (_allow)
@@ -81,6 +82,7 @@ namespace fdis.Middlewares
                         results.Add(Result.Success($"Allowed file: {contentInfo.FileName}"));
                     }
                 }
+            }
 
             targetChannel.Writer.Complete();
 
