@@ -4,7 +4,7 @@ using fdis.Consumers;
 using fdis.Data;
 using fdis.Interfaces;
 using fdis.Middlewares;
-using fdis.Producers;
+using fdis.Providers;
 using fdis.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +12,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Utf8StringInterpolation;
 using ZLogger;
-using ZLogger.Formatters;
 using ZLogger.Providers;
 
 namespace fdis
@@ -21,39 +20,28 @@ namespace fdis
     {
         private static bool _error;
 
-        [RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
-        [RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
+        [RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)"),
+         RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
         private static async Task Main(string[] args)
         {
             var cts = new CancellationTokenSource();
-            var settings = new AppSettings();
-            new ConfigurationBuilder()
-               .SetBasePath(Directory.GetCurrentDirectory())
-               .AddJsonFile("config.json", optional: true, reloadOnChange: true)
-               .AddCommandLine(args)
-               .Build()
-               .Bind(settings);
-
             var builder = Host.CreateApplicationBuilder(args);
-            builder.Logging.ClearProviders()
-                   .SetMinimumLevel(LogLevel.Information)
-                   .AddZLoggerConsole(options =>
-                                      {
-                                          options.UsePlainTextFormatter(ConsoleFormatter);
-                                      })
-                   .AddZLoggerRollingFile(options =>
-                                          {
-                                              options.FilePathSelector = (offset, i) => $"{offset:yyMMdd}_{i}.log";
-                                              options.RollingInterval = RollingInterval.Day;
-                                              options.RollingSizeKB = 1024 * 10;
-                                              options.UsePlainTextFormatter(TextFileFormatter);
-                                          });
+            ConfigureLogging(builder);
 
-            builder.Services.AddSingleton(settings);
+            builder.Services.Configure<AppSettings>(appSettings =>
+                                                    {
+                                                        new ConfigurationBuilder()
+                                                           .SetBasePath(Directory.GetCurrentDirectory())
+                                                           .AddJsonFile("config.json", true, true)
+                                                           .AddCommandLine(args)
+                                                           .Build()
+                                                           .Bind(appSettings);
+                                                    });
             builder.Services.AddSingleton(cts);
-            builder.Services.AddKeyedSingleton<IProducer, FileReader>("FileReader");
-            builder.Services.AddKeyedSingleton<IMiddleWare, FileArchiver>("FileArchiver");
-            builder.Services.AddKeyedSingleton<IConsumer, FileWriter>("FileWriter");
+            builder.Services.AddKeyedTransient<IProvider, FileReader>("FileReader");
+            builder.Services.AddKeyedTransient<IMiddleWare, FileArchiver>("FileArchiver");
+            builder.Services.AddKeyedTransient<IMiddleWare, FileFilter>("FileFilter");
+            builder.Services.AddKeyedTransient<IConsumer, FileWriter>("FileWriter");
             builder.Services.AddSingleton<SemaphoreSlim>(provider =>
                                                          {
                                                              var config = provider.GetService<AppSettings>();
@@ -63,37 +51,54 @@ namespace fdis
             builder.Services.AddHostedService<Main>();
             var host = builder.Build();
 
-            await host.RunAsync(token: cts.Token);
+            await host.RunAsync(cts.Token);
         }
 
-        private static void TextFileFormatter(PlainTextZLoggerFormatter formatter)
+        private static void ConfigureLogging(HostApplicationBuilder builder)
         {
-            formatter.SetPrefixFormatter($"[{0}|{1}]",
-                                         (in MessageTemplate template,
-                                          in LogInfo         info) => template.Format(info.Timestamp,
-                                                                                      info.LogLevel));
-            formatter.SetSuffixFormatter($" |{0}.{1}|",
-                                         (in MessageTemplate template,
-                                          in LogInfo         info) => template.Format(info.Category, info.MemberName));
-            formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
-                                                                              $"{ex.Message}"));
-        }
+            builder.Logging.ClearProviders()
+                   .SetMinimumLevel(LogLevel.Debug)
+                   .AddZLoggerConsole(ConsoleOptions)
+                   .AddZLoggerRollingFile(FileOptions);
+            return;
 
-        private static void ConsoleFormatter(PlainTextZLoggerFormatter formatter)
-        {
-            formatter.SetPrefixFormatter($"[{0}|{1}][{2}] ",
-                                         (in MessageTemplate template,
-                                          in LogInfo         info) => template.Format(info.Timestamp.Local.ToString("hh:mm:ss"),
-                                                                                      info.LogLevel,
-                                                                                      Encoding.UTF8.GetString(info.Category.Utf8Span[(info.Category
-                                                                                             .Utf8Span
-                                                                                             .LastIndexOf((byte)'.')
-                                                                                        + 1)..])));
-            formatter.SetSuffixFormatter($" [{0}]",
-                                         (in MessageTemplate template,
-                                          in LogInfo         info) => template.Format(info.MemberName));
-            formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
-                                                                              $"{ex.Message}"));
+            void FileOptions(ZLoggerRollingFileOptions options)
+            {
+                options.FilePathSelector = (offset, i) => $"{offset:yyMMdd}_{i}.log";
+                options.RollingInterval = RollingInterval.Day;
+                options.RollingSizeKB = 1024 * 10;
+                options.UsePlainTextFormatter(formatter =>
+                                              {
+                                                  formatter.SetPrefixFormatter($"[{0}|{1}]",
+                                                                               (in MessageTemplate template,
+                                                                                in LogInfo         info) => template.Format(info.Timestamp,
+                                                                                   info.LogLevel));
+                                                  formatter.SetSuffixFormatter($" |{0}.{1}|",
+                                                                               (in MessageTemplate template,
+                                                                                in LogInfo info) => template.Format(info.Category, info.MemberName));
+                                                  formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
+                                                                                      $"{ex.Message}"));
+                                              });
+            }
+
+            void ConsoleOptions(ZLoggerConsoleOptions options)
+                => options.UsePlainTextFormatter(formatter =>
+                                                 {
+                                                     formatter.SetPrefixFormatter($"[{0}|{1}][{2}] ",
+                                                                                  (in MessageTemplate template,
+                                                                                   in LogInfo         info)
+                                                                                      => template.Format(info.Timestamp.Local.ToString("hh:mm:ss"),
+                                                                                          info.LogLevel,
+                                                                                          Encoding.UTF8.GetString(info.Category.Utf8Span
+                                                                                              [(info.Category.Utf8Span
+                                                                                                   .LastIndexOf((byte)'.')
+                                                                                              + 1)..])));
+                                                     formatter.SetSuffixFormatter($" [{0}]",
+                                                                                  (in MessageTemplate template,
+                                                                                   in LogInfo         info) => template.Format(info.MemberName));
+                                                     formatter.SetExceptionFormatter((writer, ex) => Utf8String.Format(writer,
+                                                                                         $"{ex.Message}"));
+                                                 });
         }
     }
 }

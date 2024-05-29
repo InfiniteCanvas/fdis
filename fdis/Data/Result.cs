@@ -2,19 +2,19 @@
 {
     public record Result
     {
-        public enum ResultStatus { Error, Success }
-
-        public string? Info;
+        public enum ResultStatus { Failure, Success }
 
         public Exception? Exception;
 
+        public string? Info;
+
         public ResultStatus Status;
 
-        public static Result Error(string info, Exception? exception = default)
+        public static Result Failure(string info, Exception? exception = default)
         {
-            return new Result() { Info = info, Status = ResultStatus.Error, Exception = exception };
+            return new Result { Info = info, Status = ResultStatus.Failure, Exception = exception };
         }
 
-        public static Result Success(string info) { return new Result() { Info = info, Status = ResultStatus.Success }; }
+        public static Result Success(string info) { return new Result { Info = info, Status = ResultStatus.Success }; }
     }
 }

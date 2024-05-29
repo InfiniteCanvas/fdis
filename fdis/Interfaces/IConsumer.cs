@@ -5,7 +5,7 @@ namespace fdis.Interfaces
 {
     public interface IConsumer : IDisposable, INamed
     {
-        public ValueTask<Result> Consume(ContentInfo contentInfos, CancellationToken cancellationToken = default);
+        public IConsumer Configure(Dictionary<string, string> options);
 
         public ValueTask<List<Result>> ConsumeData(Channel<ContentInfo> contentChannel, CancellationToken cancellationToken = default);
     }

@@ -1,56 +1,78 @@
-﻿using System.Threading.Channels;
+﻿using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using fdis.Data;
 using fdis.Interfaces;
+using fdis.Utilities;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
-using SharpCompress.Writers.Zip;
 using ZLogger;
 
 namespace fdis.Middlewares
 {
     public class FileArchiver(ILogger<FileArchiver> logger) : IMiddleWare
     {
+        private string _archiveName;
+        private string _archivePath;
+        private Regex  _regex;
+
+        public IMiddleWare Configure(Dictionary<string, string> options)
+        {
+            _regex = new Regex(options["Regex"], RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            _archiveName = options["ArchiveName"];
+            return this;
+        }
+
         public async ValueTask<List<Result>> ProcessData(Channel<ContentInfo> sourceChannel,
                                                          Channel<ContentInfo> targetChannel,
                                                          CancellationToken    cancellationToken = default)
         {
             var results = new List<Result>();
             using var archive = ZipArchive.Create();
-            var archivePath = Path.Combine(Path.GetTempPath(), Path.GetTempFileName());
+            _archivePath = Path.Combine(Path.GetTempPath(), Path.GetTempFileName());
 
+            logger.ZLogInformation($"Archiving items that match {_regex.ToString()}");
             await foreach (var contentInfo in sourceChannel.Reader.ReadAllAsync(cancellationToken))
             {
                 if (!Path.Exists(contentInfo.FilePath))
                     continue;
-                archive.AddEntry(contentInfo.FileName, contentInfo.FilePath);
-                logger.ZLogDebug($"[{Name}] {contentInfo} added to archive");
+                // match file name, since filepath can be other temp archives
+                if (!_regex.IsMatch(contentInfo.FolderRelativeToSource.Combine(contentInfo.FileName)))
+                {
+                    logger.ZLogDebug($"{contentInfo} did not match {_regex.ToString()}, not added to archive");
+                    await targetChannel.Writer.WriteAsync(contentInfo, cancellationToken);
+                    continue;
+                }
+
+                archive.AddEntry(contentInfo.FolderRelativeToSource.Combine(contentInfo.FileName), contentInfo.FilePath);
+                logger.ZLogDebug($"{contentInfo.FolderRelativeToSource.Combine(contentInfo.FileName)} added to archive");
                 results.Add(Result.Success($"{contentInfo} added to archive"));
             }
 
-            logger.ZLogInformation($"[{Name}] Writing {archive.Entries.Count} entries to archive, compressing {archive.TotalUncompressSize >> 20}MiB..");
-            archive.SaveTo(archivePath, new ZipWriterOptions(CompressionType.LZMA));
-            var archiveInfo = new FileInfo(archivePath);
+            logger.ZLogInformation($"Writing {archive.Entries.Count} entries to archive [{_archiveName}], compressing {archive.TotalUncompressSize >> 20}MiB..");
+            archive.SaveTo(_archivePath, CompressionType.Deflate);
+            var archiveInfo = new FileInfo(_archivePath);
             await targetChannel.Writer.WriteAsync(new ContentInfo
                                                   {
-                                                      FilePath = archivePath,
+                                                      FilePath = _archivePath,
                                                       FolderRelativeToSource = @".\",
-                                                      FileName = "archive.zip",
+                                                      FileName = _archiveName,
                                                       Size = archiveInfo.Length
                                                   },
                                                   cancellationToken);
             targetChannel.Writer.Complete();
-            logger.ZLogInformation($"[{Name}] Compressed {archive.TotalUncompressSize >> 20}MiB to {archiveInfo.Length >> 20}MiB");
+            logger.ZLogInformation($"Compressed {_archiveName} from {archive.TotalUncompressSize >> 20}MiB to {archiveInfo.Length >> 20}MiB");
 
             return results;
         }
 
         public void Dispose()
         {
-            // TODO release managed resources here
+            logger.ZLogInformation($"Cleaning up {Name}, deleting archive at {_archivePath}");
+            File.Delete(_archivePath);
         }
 
-        public string Name => nameof(FileArchiver);
+        public string Name => $"{nameof(FileArchiver)}_{_archiveName} [{_regex}]";
     }
 }

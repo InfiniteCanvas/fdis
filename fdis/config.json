@@ -1,12 +1,48 @@
 ﻿{
   "Source": "D:\\Repos\\C#\\fdis\\samples",
-  "SaveFolder": "d:\\test\\output",
-  "Provider": "FileReader",
-  "Consumers": [
-    "FileWriter"
-  ],
   "Threads": 1,
+  "Provider": {
+    "Type": "FileReader",
+    "Options": {
+    }
+  },
+  "Consumers": [
+    {
+      "Type": "FileWriter",
+      "Options": {
+        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
+        "BufferSize": 81920
+      }
+    }
+  ],
   "Middlewares": [
-    "FileArchiver"
+    {
+      "Type": "FileFilter",
+      "Options": {
+        "Regex": ".*",
+        "Mode": "Allow"
+      }
+    },
+    {
+      "Type": "FileArchiver",
+      "Options": {
+        "Regex": ".*\\.(jpg|jpeg|png|gif)$",
+        "ArchiveName": "pics.zip"
+      }
+    },
+    {
+      "Type": "FileArchiver",
+      "Options": {
+        "Regex": ".*\\.(mov|mp4|mkv|webm|avi)$",
+        "ArchiveName": "vods.zip"
+      }
+    },
+    {
+      "Type": "FileArchiver",
+      "Options": {
+        "Regex": "^(?!.*\\.zip$).*$",
+        "ArchiveName": "rest.zip"
+      }
+    }
   ]
 }
