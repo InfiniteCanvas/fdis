@@ -65,12 +65,14 @@ namespace fdis.Workers
                 }
             }
 
+            var processedChannel = middleChannels[middlewareCounter];
+
             // consumers
             foreach (var consumer in _consumers)
             {
                 Task.Run(async () =>
                          {
-                             foreach (var result in await consumer.ConsumeData(middleChannels[middlewareCounter], stoppingToken)
+                             foreach (var result in await consumer.ConsumeData(processedChannel, stoppingToken)
                                                                   .ConfigureAwait(false))
                                  logger.ZLogDebug($"{result.Status.ToString()}: {result.Info}");
                          },

@@ -17,7 +17,7 @@
     {
       "Type": "FileSorter",
       "Options": {
-        "Regex": ".*\\.jpg",
+        "Regex": ".*\\.jpg$",
         "Subfolder": "jpg\\"
       }
     },
@@ -25,13 +25,29 @@
       "Type": "DeduplicateFiles",
       "Options": {
         "BufferSize": 64,
-        "Scans": 5
+        "Scans": 3
       }
     },
     {
       "Type": "FilePathCollisionSolver",
       "Options": {
         "Mode": "Rename"
+      }
+    },
+    {
+      "Type": "ConvertImagesToWebp",
+      "Options": {
+        "Regex": ".*\\.(jpg|jpeg)$",
+        "Mode": "Lossy",
+        "Quality": 75
+      }
+    },
+    {
+      "Type": "ConvertImagesToWebp",
+      "Options": {
+        "Regex": ".*\\.(png|bmp)$",
+        "Mode": "Lossless",
+        "Quality": 100
       }
     },
     {

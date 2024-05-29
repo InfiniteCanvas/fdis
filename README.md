@@ -20,15 +20,6 @@ Overwrites:
     "Options": {
     }
   },
-  "Consumers": [
-    {
-      "Type": "FileWriter",
-      "Options": {
-        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
-        "BufferSize": 81920
-      }
-    }
-  ],
   "Middlewares": [
     {
       "Type": "FileFilter",
@@ -40,7 +31,7 @@ Overwrites:
     {
       "Type": "FileSorter",
       "Options": {
-        "Regex": ".*\\.jpg",
+        "Regex": ".*\\.jpg$",
         "Subfolder": "jpg\\"
       }
     },
@@ -48,7 +39,7 @@ Overwrites:
       "Type": "DeduplicateFiles",
       "Options": {
         "BufferSize": 64,
-        "Scans": 5
+        "Scans": 3
       }
     },
     {
@@ -58,10 +49,36 @@ Overwrites:
       }
     },
     {
+      "Type": "ConvertImagesToWebp",
+      "Options": {
+        "Regex": ".*\\.(jpg|jpeg)$",
+        "Mode": "Lossy",
+        "Quality": 75
+      }
+    },
+    {
+      "Type": "ConvertImagesToWebp",
+      "Options": {
+        "Regex": ".*\\.(png|bmp)$",
+        "Mode": "Lossless",
+        "Quality": 100
+      }
+    },
+    {
       "Type": "FileArchiver",
       "Options": {
         "Regex": "^(?!.*\\.zip$).*$",
         "ArchiveName": "unarchivedFiles.zip"
+      }
+    }
+  ],
+  "Consumers": [
+    {
+      "Type": "FileWriter",
+      "Options": {
+        "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
+        "BufferSize": 81920,
+        "Mode": "Rename"
       }
     }
   ]
@@ -97,6 +114,12 @@ Defaults are in ``[default]``
         - ``Mode["Remove"]`` ``Rename`` renames items that collide, ``Remove`` removes items that collide so that only 1 remains
     - ``DeduplicateFiles``
         - looks for items that have the same file content by comparing probes of ``BufferSize``, ``Scans`` times
+    - ``ConvertImagesToWebp``
+        - tries to convert matched items to webp
+        - ``Regex[@".*\.(jpg|jpeg)"]`` matches filenames and processes only those
+        - ``Mode[Lossy]`` sets whether to use lossless or lossy compression
+        - ``Quality[75]`` sets the quality of encoding. For lossy, 0 is smallest, worst quality, 100 is biggest, best quality. For lossless, 0 is
+          fastest with least compression, 100 is slowest with highest compression
 - Consumers
     - ``FileWriter``
         - Writes items to ``SaveFolder``

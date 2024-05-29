@@ -41,6 +41,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="SharpCompress" Version="0.37.2"/>
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.4"/>
         <PackageReference Include="ZLogger" Version="2.4.1"/>
     </ItemGroup>
 
