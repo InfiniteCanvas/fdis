@@ -6,20 +6,32 @@ I'm mostly using this to learn how I can use channels.
 
 ## Config
 
-Can be set by json or command line args. Command line args have the same name and can be set like ``fdis --source="d:\output"``
+Can be set by json or command line
+args. [Command line args](https://learn.microsoft.com/en-us/dotnet/core/extensions/configuration-providers#command-line-configuration-provider) have
+the same name, but you should just use the json config.
 
 Overwrites:
 ``Command line args`` overwrite ``json configs`` overwrite ``default configs``.
 
 ```json
 {
-  "Source": "D:\\Repos\\C#\\fdis\\samples",
   "Threads": 1,
-  "Provider": {
-    "Type": "FileReader",
-    "Options": {
+  "Providers": [
+    {
+      "Type": "FileReader",
+      "Options": {
+        "Source": "D:\\Repos\\C#\\fdis\\samples",
+        "Mode": "Unchecked"
+      }
+    },
+    {
+      "Type": "FileReader",
+      "Options": {
+        "Source": "D:\\Repos\\C#\\fdis\\samples2",
+        "Mode": "Deduplicate"
+      }
     }
-  },
+  ],
   "Middlewares": [
     {
       "Type": "FileFilter",
@@ -51,14 +63,6 @@ Overwrites:
     {
       "Type": "ConvertImagesToWebp",
       "Options": {
-        "Regex": ".*\\.(jpg|jpeg)$",
-        "Mode": "Lossy",
-        "Quality": 75
-      }
-    },
-    {
-      "Type": "ConvertImagesToWebp",
-      "Options": {
         "Regex": ".*\\.(png|bmp)$",
         "Mode": "Lossless",
         "Quality": 100
@@ -78,7 +82,7 @@ Overwrites:
       "Options": {
         "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
         "BufferSize": 81920,
-        "Mode": "Rename"
+        "Mode": "Overwrite"
       }
     }
   ]
@@ -94,6 +98,9 @@ Defaults are in ``[default]``
 - Provider
     - ``FileReader``
         - Reads file or files from ``Source``
+        - ``Mode["Deduplicate"]``
+            - ``Deduplicate`` will reject duplicates from source if they already exist in the channel
+            - ``Unchecked`` no checks, adds everything
 - Middlewares (run from top to bottom, sequentially)
     - ``FileArchiver``
         - zips everything into an archive using Deflate
@@ -116,7 +123,7 @@ Defaults are in ``[default]``
         - looks for items that have the same file content by comparing probes of ``BufferSize``, ``Scans`` times
     - ``ConvertImagesToWebp``
         - tries to convert matched items to webp
-        - ``Regex[@".*\.(jpg|jpeg)"]`` matches filenames and processes only those
+        - ``Regex[@".*\.(png|bmp)"]`` matches filenames and processes only those
         - ``Mode[Lossy]`` sets whether to use lossless or lossy compression
         - ``Quality[75]`` sets the quality of encoding. For lossy, 0 is smallest, worst quality, 100 is biggest, best quality. For lossless, 0 is
           fastest with least compression, 100 is slowest with highest compression

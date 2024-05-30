@@ -32,7 +32,7 @@ namespace fdis.Middlewares
                                                          Channel<ContentInfo> targetChannel,
                                                          CancellationToken    cancellationToken = default)
         {
-            var set = new SortedSet<ContentInfo>(new PathSorter());
+            var set = new SortedSet<ContentInfo>(new ContentInfo.PathSorter());
             var collisions = 0;
 
             await foreach (var content in sourceChannel.Reader.ReadAllAsync(cancellationToken))
@@ -59,22 +59,6 @@ namespace fdis.Middlewares
 
             targetChannel.Writer.Complete();
             return [Result.Success($"{set.Count + collisions} files processed, {collisions} solved")];
-        }
-
-        private class PathSorter : IComparer<ContentInfo>
-        {
-            public int Compare(ContentInfo x, ContentInfo y)
-            {
-                if (ReferenceEquals(x, y))
-                    return 0;
-                if (ReferenceEquals(null, y))
-                    return 1;
-                if (ReferenceEquals(null, x))
-                    return -1;
-                return string.Compare(x.FolderRelativeToSource.Combine(x.FileName),
-                                      y.FolderRelativeToSource.Combine(y.FileName),
-                                      StringComparison.Ordinal);
-            }
         }
     }
 }

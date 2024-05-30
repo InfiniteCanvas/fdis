@@ -7,8 +7,8 @@ namespace fdis.Interfaces
     {
         public IProvider Configure(Dictionary<string, string> options);
 
-        public ValueTask<List<Result>> ProvideData(string               sourceUri,
-                                                   Channel<ContentInfo> contentChannel,
+        public ValueTask<List<Result>> ProvideData(Channel<ContentInfo> sourceChannel,
+                                                   Channel<ContentInfo> targetChannel,
                                                    CancellationToken    cancellationToken = default);
     }
 }

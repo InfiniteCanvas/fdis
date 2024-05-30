@@ -19,50 +19,75 @@ namespace fdis.Workers
         private readonly AppSettings   _settings    = options.Value;
         private          IConsumer[]   _consumers   = [];
         private          IMiddleWare[] _middlewares = [];
-        private          IProvider?    _provider;
+        private          IProvider[]   _providers;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.ZLogInformation($"Starting File Distributor (fdis)..");
 
             SetupComponents();
+            var unboundedChannelOptions = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };
             var tasks = new List<Task>();
 
             // provider
-            var unboundedChannelOptions = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };
-            var sourceChannel = Channel.CreateUnbounded<ContentInfo>(unboundedChannelOptions);
-            logger.ZLogInformation($"Running provider {_settings.Provider}");
-            Task.Run(async () =>
-                     {
-                         foreach (var result in await _provider!.ProvideData(_settings.Source, sourceChannel, stoppingToken).ConfigureAwait(false))
-                             logger.ZLogDebug($"{result.Status.ToString()}: {result.Info}");
-                     },
-                     stoppingToken)
-                .AddTo(tasks);
-
-            // middlewares
-            var middleChannels = new Channel<ContentInfo>[_settings.Middlewares.Length + 1];
-            var middlewareCounter = 0;
-            middleChannels[0] = sourceChannel;
-            if (_middlewares.Length > 0)
+            var emptyChannel = Channel.CreateUnbounded<ContentInfo>();
+            emptyChannel.Writer.Complete();
+            var sourceChannels = new Channel<ContentInfo>[_providers.Length];
+            for (var index = 0; index < _providers.Length; index++)
             {
-                foreach (var middleware in _middlewares)
+                var i = index;
+                var provider = _providers[index];
+                sourceChannels[i] = Channel.CreateUnbounded<ContentInfo>(unboundedChannelOptions);
+                if (index == 0)
                 {
-                    middlewareCounter++;
-                    logger.ZLogInformation($"Linking middleware {middleware.Name}, source[{middlewareCounter - 1}] to target[{middlewareCounter}]");
-                    middleChannels[middlewareCounter] = Channel.CreateUnbounded<ContentInfo>(unboundedChannelOptions);
-                    var counter = middlewareCounter;
                     Task.Run(async () =>
                              {
-                                 foreach (var result in await middleware.ProcessData(middleChannels[counter - 1],
-                                                                                     middleChannels[counter],
-                                                                                     stoppingToken)
-                                                                        .ConfigureAwait(false))
-                                     logger.ZLogDebug($"{result.Status.ToString()}: {result.Info}");
+                                 logger.ZLogInformation($"Setting up initial provider[0]");
+                                 foreach (var result in await provider.ProvideData(emptyChannel, sourceChannels[i], stoppingToken))
+                                 {
+                                     logger.ZLogDebug($"{provider.Name}[{result.Status.ToString()}]: {result.Info}");
+                                 }
                              },
                              stoppingToken)
                         .AddTo(tasks);
                 }
+                else
+                {
+                    Task.Run(async () =>
+                             {
+                                 logger.ZLogInformation($"Linking up provider[{i - 1}] to provider[{i}]");
+                                 foreach (var result in await provider.ProvideData(sourceChannels[i - 1], sourceChannels[i], stoppingToken))
+                                 {
+                                     logger.ZLogDebug($"{provider.Name}[{result.Status.ToString()}]: {result.Info}");
+                                 }
+                             },
+                             stoppingToken)
+                        .AddTo(tasks);
+                }
+            }
+
+            var sourceChannel = sourceChannels[^1];
+
+            // middlewares
+            var middleChannels = new Channel<ContentInfo>[_middlewares.Length + 1];
+            var middlewareCounter = 0;
+            middleChannels[0] = sourceChannel;
+            foreach (var middleware in _middlewares)
+            {
+                middlewareCounter++;
+                logger.ZLogInformation($"Linking middleware {middleware.Name}, source[{middlewareCounter - 1}] to target[{middlewareCounter}]");
+                middleChannels[middlewareCounter] = Channel.CreateUnbounded<ContentInfo>(unboundedChannelOptions);
+                var counter = middlewareCounter;
+                Task.Run(async () =>
+                         {
+                             foreach (var result in await middleware.ProcessData(middleChannels[counter - 1],
+                                                                                 middleChannels[counter],
+                                                                                 stoppingToken)
+                                                                    .ConfigureAwait(false))
+                                 logger.ZLogDebug($"{result.Status.ToString()}: {result.Info}");
+                         },
+                         stoppingToken)
+                    .AddTo(tasks);
             }
 
             var processedChannel = middleChannels[middlewareCounter];
@@ -88,16 +113,24 @@ namespace fdis.Workers
 
         private void SetupComponents()
         {
-            _provider = serviceProvider.GetKeyedService<IProvider>(_settings.Provider.Type);
-            if (_provider == null)
+            // providers
+            var providers = new List<IProvider>();
+            foreach (var providerOptions in _settings.Providers)
             {
-                logger.ZLogCritical($"No provider found");
+                var provider = serviceProvider.GetKeyedService<IProvider>(providerOptions.Type);
+                provider?.Configure(providerOptions.Options).AddTo(providers);
+            }
+
+            _providers = providers.ToArray();
+
+            if (_providers.Length == 0)
+            {
+                logger.ZLogCritical($"No providers found");
                 hostApplicationLifetime.StopApplication();
                 return;
             }
 
-            _provider.Configure(_settings.Provider.Options);
-
+            // consumers
             var consumers = new List<IConsumer>();
             foreach (var consumerOptions in _settings.Consumers)
             {
@@ -107,13 +140,14 @@ namespace fdis.Workers
 
             _consumers = consumers.ToArray();
 
-            if (_settings.Consumers.Length == 0 || _consumers.Length == 0)
+            if (_consumers.Length == 0)
             {
                 logger.ZLogCritical($"No consumers found");
                 hostApplicationLifetime.StopApplication();
                 return;
             }
 
+            // middlewares
             var middlewares = new List<IMiddleWare>();
             foreach (var middlewareOptions in _settings.Middlewares)
             {

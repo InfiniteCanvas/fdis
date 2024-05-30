@@ -1,11 +1,21 @@
 ﻿{
-  "Source": "D:\\Repos\\C#\\fdis\\samples",
   "Threads": 1,
-  "Provider": {
-    "Type": "FileReader",
-    "Options": {
+  "Providers": [
+    {
+      "Type": "FileReader",
+      "Options": {
+        "Source": "D:\\Repos\\C#\\fdis\\samples",
+        "Mode": "Unchecked"
+      }
+    },
+    {
+      "Type": "FileReader",
+      "Options": {
+        "Source": "D:\\Repos\\C#\\fdis\\samples2",
+        "Mode": "Deduplicate"
+      }
     }
-  },
+  ],
   "Middlewares": [
     {
       "Type": "FileFilter",
@@ -37,14 +47,6 @@
     {
       "Type": "ConvertImagesToWebp",
       "Options": {
-        "Regex": ".*\\.(jpg|jpeg)$",
-        "Mode": "Lossy",
-        "Quality": 75
-      }
-    },
-    {
-      "Type": "ConvertImagesToWebp",
-      "Options": {
         "Regex": ".*\\.(png|bmp)$",
         "Mode": "Lossless",
         "Quality": 100
@@ -64,7 +66,7 @@
       "Options": {
         "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
         "BufferSize": 81920,
-        "Mode": "Rename"
+        "Mode": "Overwrite"
       }
     }
   ]

@@ -2,10 +2,9 @@
 {
     public class AppSettings
     {
-        public string             Source      { get; set; } = string.Empty;
-        public ComponentOptions   Provider    { get; set; } = null;
-        public ComponentOptions[] Consumers   { get; set; } = [];
         public int                Threads     { get; set; } = 1;
+        public ComponentOptions[] Providers   { get; set; } = [];
+        public ComponentOptions[] Consumers   { get; set; } = [];
         public ComponentOptions[] Middlewares { get; set; } = [];
     }
 

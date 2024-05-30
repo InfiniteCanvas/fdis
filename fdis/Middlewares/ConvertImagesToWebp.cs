@@ -32,7 +32,7 @@ namespace fdis.Middlewares
         {
             if (!options.TryGetValue("Regex", out var pattern))
             {
-                pattern = @".*\.(jpg|jpeg)";
+                pattern = @".*\.(png|bmp)";
                 logger.ZLogWarning($"No regex set, defaulting to {pattern}");
             }
 

@@ -37,7 +37,7 @@ namespace fdis.Middlewares
                                                          CancellationToken    cancellationToken = default)
         {
             // dedupe by sorting by size and checking same file sizes with small probes (64 bytes or something)
-            var set = new SortedSet<ContentInfo>(new DedupeComparer(_bufferSize, _scans));
+            var set = new SortedSet<ContentInfo>(new ContentInfo.DedupeComparer(_bufferSize, _scans));
             var dupes = 0;
             await foreach (var contentInfo in sourceChannel.Reader.ReadAllAsync(cancellationToken))
             {
@@ -53,50 +53,6 @@ namespace fdis.Middlewares
             targetChannel.Writer.Complete();
 
             return [Result.Success($"Processed {set.Count + dupes}, removed {dupes} duplicates")];
-        }
-
-        private class DedupeComparer(int bufferSize = 64, int scans = 5) : IComparer<ContentInfo>
-        {
-            private readonly long _scans = scans;
-
-            public int Compare(ContentInfo x, ContentInfo y)
-            {
-                if (ReferenceEquals(x, y))
-                    return 0;
-                if (ReferenceEquals(null, y))
-                    return 1;
-                if (ReferenceEquals(null, x))
-                    return -1;
-                if (x.Size != y.Size)
-                    return x.Size.CompareTo(y.Size);
-
-                return CompareFileContents(x, y);
-            }
-
-            private int CompareFileContents(ContentInfo x, ContentInfo y)
-            {
-                using var fx = File.OpenRead(x.FilePath);
-                using var fy = File.OpenRead(y.FilePath);
-
-                Span<byte> xBuffer = new byte[bufferSize];
-                Span<byte> yBuffer = new byte[bufferSize];
-                for (var i = 1; i < _scans; i++)
-                {
-                    var xbytes = fx.Read(xBuffer);
-                    var ybytes = fy.Read(yBuffer);
-                    var comp = xbytes.CompareTo(ybytes);
-                    if (comp != 0)
-                        return comp;
-
-                    if (!xBuffer.SequenceEqual(yBuffer))
-                        return xBuffer.SequenceCompareTo(yBuffer);
-
-                    fx.Position = fx.Length / _scans * i;
-                    fy.Position = fy.Length / _scans * i;
-                }
-
-                return 0;
-            }
         }
     }
 }
