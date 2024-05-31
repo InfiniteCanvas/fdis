@@ -73,6 +73,8 @@ namespace fdis.Middlewares
             File.Delete(_archivePath);
         }
 
-        public string Name => $"{nameof(FileArchiver)}_{_archiveName} [{_regex}]";
+        public string Name => nameof(FileArchiver);
+
+        public override string ToString() { return $"{Name}[{_regex}]/[{_archiveName}]"; }
     }
 }

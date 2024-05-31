@@ -36,20 +36,29 @@ namespace fdis.Consumers
 
         public async ValueTask<List<Result>> ConsumeData(Channel<ContentInfo> contentChannel, CancellationToken cancellationToken = default)
         {
-            var results = new List<Result>();
-            await foreach (var contentInfo in contentChannel.Reader.ReadAllAsync(cancellationToken))
+            try
             {
-                var result = await Consume(contentInfo, cancellationToken);
-                results.Add(result);
-            }
+                var results = new List<Result>();
+                await foreach (var contentInfo in contentChannel.Reader.ReadAllAsync(cancellationToken))
+                {
+                    var result = await Consume(contentInfo, cancellationToken);
+                    results.Add(result);
+                }
 
-            logger.ZLogInformation($"Wrote {results.Count} files to {_saveFolder}");
-            return results;
+                logger.ZLogInformation($"Wrote {results.Count} files to {_saveFolder}");
+                return results;
+            }
+            catch (Exception e)
+            {
+                logger.ZLogCritical(e,
+                                    $"Something went wrong in {Name}, cancellation requested:{cancellationToken.IsCancellationRequested}, {e.StackTrace}");
+                throw;
+            }
         }
 
         public void Dispose()
         {
-            // TODO release managed resources here
+            // release managed resources here
         }
 
         public string Name => nameof(FileWriter);
@@ -57,7 +66,6 @@ namespace fdis.Consumers
         private async ValueTask<Result> Consume(ContentInfo contentInfo, CancellationToken cancellationToken = default)
         {
             var saveFolder = Path.Combine(_saveFolder, contentInfo.FolderRelativeToSource);
-            logger.ZLogDebug($"Consuming {contentInfo.FileName}[{contentInfo.FilePath}]");
             if (!File.Exists(contentInfo.FilePath))
                 return Result.Failure($"{contentInfo.FilePath} doesn't exist");
 
@@ -71,6 +79,7 @@ namespace fdis.Consumers
                 savePath = Path.Combine(saveFolder, $"{filename}_{Path.GetRandomFileName()}.{ext}");
             }
 
+            logger.ZLogDebug($"Writing {contentInfo.FileName} to {savePath}]");
             await using (var sourceStream = File.OpenRead(contentInfo.FilePath))
             {
                 await using (var destinationStream = File.Create(savePath))

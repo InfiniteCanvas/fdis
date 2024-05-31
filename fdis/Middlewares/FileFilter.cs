@@ -85,11 +85,12 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
+            logger.ZLogInformation($"Allowed {results.Count(result => result.Status == Result.ResultStatus.Success)}, blocked {results.Count(result => result.Status == Result.ResultStatus.Failure)}");
 
             return results;
         }
 
-        public override string ToString() { return $"{Name}[{_regex}][{_allow}]"; }
+        public override string ToString() { return $"{Name}[{_regex}][{_allow switch { true => "Allow", _ => "Reject" }}]"; }
 
         // Protected implementation of Dispose pattern.
         protected virtual void Dispose(bool disposing)

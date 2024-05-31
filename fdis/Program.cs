@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Utf8StringInterpolation;
 using ZLogger;
 using ZLogger.Providers;
@@ -26,7 +27,12 @@ namespace fdis
         {
             var cts = new CancellationTokenSource();
             var builder = Host.CreateApplicationBuilder(args);
-            ConfigureLogging(builder);
+
+            ConfigureLogging(builder, args);
+            builder.Services.Configure<HostOptions>(options =>
+                                                    {
+                                                        options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
+                                                    });
 
             builder.Services.Configure<AppSettings>(appSettings =>
                                                     {
@@ -48,20 +54,39 @@ namespace fdis
             builder.Services.AddKeyedTransient<IConsumer, FileWriter>("FileWriter");
             builder.Services.AddSingleton<SemaphoreSlim>(provider =>
                                                          {
-                                                             var config = provider.GetService<AppSettings>();
-                                                             return config != null ? new SemaphoreSlim(config.Threads) : new SemaphoreSlim(1);
+                                                             var config = provider.GetService<IOptions<AppSettings>>()?.Value;
+                                                             return config != null
+                                                                 ? new SemaphoreSlim(config.Threads)
+                                                                 : new SemaphoreSlim(1);
                                                          });
-
             builder.Services.AddHostedService<Main>();
             var host = builder.Build();
 
             await host.RunAsync(cts.Token);
         }
 
-        private static void ConfigureLogging(HostApplicationBuilder builder)
+        private static void ConfigureLogging(HostApplicationBuilder builder, string[] args)
         {
+            var settings = new AppSettings();
+            new ConfigurationBuilder()
+               .SetBasePath(Directory.GetCurrentDirectory())
+               .AddJsonFile("config.json", true, true)
+               .AddCommandLine(args)
+               .Build()
+               .Bind(settings);
+            var logLevel = settings.Logging switch
+            {
+                "Critical"    => LogLevel.Critical,
+                "Error"       => LogLevel.Error,
+                "Warning"     => LogLevel.Warning,
+                "Information" => LogLevel.Information,
+                "Debug"       => LogLevel.Debug,
+                "Trace"       => LogLevel.Trace,
+                _             => LogLevel.Debug
+            };
+
             builder.Logging.ClearProviders()
-                   .SetMinimumLevel(LogLevel.Debug)
+                   .SetMinimumLevel(logLevel)
                    .AddZLoggerConsole(ConsoleOptions)
                    .AddZLoggerRollingFile(FileOptions);
             return;

@@ -61,7 +61,7 @@ namespace fdis.Providers
             return [Result.Success($"Read file: {content.FilePath}")];
         }
 
-        public string Name => nameof(FileReader);
+        public string Name => $"{nameof(FileReader)}[{_source}]";
 
         private async ValueTask<List<Result>> ProcessDirectory(string                 sourceUri,
                                                                Channel<ContentInfo>   contentChannel,
@@ -98,7 +98,7 @@ namespace fdis.Providers
             }
 
             contentChannel.Writer.Complete();
-            logger.ZLogInformation($"Read {filePaths.Length} items from {sourceUri}");
+            logger.ZLogInformation($"Read {filePaths.Length} items from {sourceUri}, discarded {results.Count(result => result.Status == Result.ResultStatus.Failure)} items");
             return results;
         }
     }

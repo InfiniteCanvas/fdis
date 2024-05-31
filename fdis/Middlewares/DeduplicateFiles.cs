@@ -51,8 +51,11 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
+            logger.ZLogInformation($"Rejected {dupes} duplicate files");
 
             return [Result.Success($"Processed {set.Count + dupes}, removed {dupes} duplicates")];
         }
+
+        public override string ToString() { return $"{Name}"; }
     }
 }

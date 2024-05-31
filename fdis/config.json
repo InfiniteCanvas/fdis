@@ -1,5 +1,6 @@
 ﻿{
-  "Threads": 1,
+  "Logging": "Information",
+  "Threads": 6,
   "Providers": [
     {
       "Type": "FileReader",
@@ -65,6 +66,14 @@
       "Type": "FileWriter",
       "Options": {
         "SaveFolder": "D:\\Repos\\C#\\fdis\\output",
+        "BufferSize": 81920,
+        "Mode": "Overwrite"
+      }
+    },
+    {
+      "Type": "FileWriter",
+      "Options": {
+        "SaveFolder": "D:\\Repos\\C#\\fdis\\output2",
         "BufferSize": 81920,
         "Mode": "Overwrite"
       }

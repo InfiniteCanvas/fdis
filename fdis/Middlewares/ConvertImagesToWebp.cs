@@ -90,8 +90,11 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
+            logger.ZLogInformation($"Converted {results.Count(result => result.Status == Result.ResultStatus.Success)} images to webp {_encoder.FileFormat}[{_quality}]");
 
             return results;
         }
+
+        public override string ToString() { return $"{Name}[{_regex}][{_encoder.FileFormat.ToString()}:{_quality}]"; }
     }
 }

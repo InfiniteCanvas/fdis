@@ -62,8 +62,11 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
+            logger.ZLogInformation($"Sorted {results.Count} into {_subfolder}");
 
             return results;
         }
+
+        public override string ToString() { return $"{Name}[{_regex}]/[{_subfolder}]"; }
     }
 }

@@ -19,14 +19,14 @@ namespace fdis.Workers
         private readonly AppSettings   _settings    = options.Value;
         private          IConsumer[]   _consumers   = [];
         private          IMiddleWare[] _middlewares = [];
-        private          IProvider[]   _providers;
+        private          IProvider[]   _providers   = [];
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.ZLogInformation($"Starting File Distributor (fdis)..");
 
             SetupComponents();
-            var unboundedChannelOptions = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };
+            var unboundedChannelOptions = new UnboundedChannelOptions { SingleReader = false, SingleWriter = true };
             var tasks = new List<Task>();
 
             // provider
@@ -42,11 +42,9 @@ namespace fdis.Workers
                 {
                     Task.Run(async () =>
                              {
-                                 logger.ZLogInformation($"Setting up initial provider[0]");
+                                 logger.ZLogInformation($"Setting up initial {provider.Name}");
                                  foreach (var result in await provider.ProvideData(emptyChannel, sourceChannels[i], stoppingToken))
-                                 {
                                      logger.ZLogDebug($"{provider.Name}[{result.Status.ToString()}]: {result.Info}");
-                                 }
                              },
                              stoppingToken)
                         .AddTo(tasks);
@@ -55,11 +53,9 @@ namespace fdis.Workers
                 {
                     Task.Run(async () =>
                              {
-                                 logger.ZLogInformation($"Linking up provider[{i - 1}] to provider[{i}]");
+                                 logger.ZLogInformation($"Feeding {_providers[i - 1].Name} into {_providers[i].Name}");
                                  foreach (var result in await provider.ProvideData(sourceChannels[i - 1], sourceChannels[i], stoppingToken))
-                                 {
                                      logger.ZLogDebug($"{provider.Name}[{result.Status.ToString()}]: {result.Info}");
-                                 }
                              },
                              stoppingToken)
                         .AddTo(tasks);
@@ -75,7 +71,11 @@ namespace fdis.Workers
             foreach (var middleware in _middlewares)
             {
                 middlewareCounter++;
-                logger.ZLogInformation($"Linking middleware {middleware.Name}, source[{middlewareCounter - 1}] to target[{middlewareCounter}]");
+                if (middlewareCounter == 1)
+                    logger.ZLogInformation($"Feeding source {_providers[^1].Name} into {middleware.Name}");
+                else
+                    logger.ZLogInformation($"Feeding middleware {_middlewares[middlewareCounter - 2]} into {middleware}");
+
                 middleChannels[middlewareCounter] = Channel.CreateUnbounded<ContentInfo>(unboundedChannelOptions);
                 var counter = middlewareCounter;
                 Task.Run(async () =>
@@ -90,16 +90,20 @@ namespace fdis.Workers
                     .AddTo(tasks);
             }
 
-            var processedChannel = middleChannels[middlewareCounter];
+            var processedChannel = middleChannels[^1];
 
             // consumers
-            foreach (var consumer in _consumers)
+            var consumerChannels = new Channel<ContentInfo>[_consumers.Length];
+            Broadcaster.CreateBroadcastChannels(processedChannel, consumerChannels, stoppingToken).AddTo(tasks);
+            for (var index = 0; index < _consumers.Length; index++)
             {
+                var consumer = _consumers[index];
+                var consumerChannel = consumerChannels[index];
                 Task.Run(async () =>
                          {
-                             foreach (var result in await consumer.ConsumeData(processedChannel, stoppingToken)
+                             foreach (var result in await consumer.ConsumeData(consumerChannel, stoppingToken)
                                                                   .ConfigureAwait(false))
-                                 logger.ZLogDebug($"{result.Status.ToString()}: {result.Info}");
+                                 logger.ZLogDebug($"[{consumer.Name}]{result.Status.ToString()}: {result.Info}");
                          },
                          stoppingToken)
                     .AddTo(tasks);

@@ -1,7 +1,6 @@
 ﻿using System.Threading.Channels;
 using fdis.Data;
 using fdis.Interfaces;
-using fdis.Utilities;
 using Microsoft.Extensions.Logging;
 using ZLogger;
 
@@ -58,7 +57,10 @@ namespace fdis.Middlewares
             }
 
             targetChannel.Writer.Complete();
+            logger.ZLogInformation($"Resolved {set.Count} path collisions");
             return [Result.Success($"{set.Count + collisions} files processed, {collisions} solved")];
         }
+
+        public override string ToString() { return $"{Name}[{_rename switch { true => "Rename", _ => "Remove" }}]"; }
     }
 }
