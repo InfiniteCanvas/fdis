@@ -51,11 +51,7 @@ namespace fdis.Providers
             if (Directory.Exists(_source))
                 return await ProcessDirectory(_source, targetChannel, set, cancellationToken);
 
-
-            var content = new ContentInfo
-            {
-                FilePath = _source, FileName = Path.GetFileName(_source), FolderRelativeToSource = "", Size = new FileInfo(_source).Length
-            };
+            var content = new ContentInfo(Path.GetFileName(_source), "", new FileInfo(_source));
             await targetChannel.Writer.WriteAsync(content, cancellationToken);
 
             return [Result.Success($"Read file: {content.FilePath}")];
@@ -77,13 +73,11 @@ namespace fdis.Providers
                 var folderRelativeToSource = sourceUri == Path.GetDirectoryName(filePath)
                     ? ""
                     : Path.GetRelativePath(sourceUri, Path.GetDirectoryName(filePath) ?? filePath);
-                var contentInfo = new ContentInfo
-                {
-                    FilePath = filePath,
-                    FileName = Path.GetFileName(filePath),
-                    Size = new FileInfo(filePath).Length,
-                    FolderRelativeToSource = folderRelativeToSource
-                };
+
+                var contentInfo = new ContentInfo(FileInfo: new FileInfo(filePath),
+                                                  FileName: Path.GetFileName(filePath),
+                                                  FolderRelativeToSource: folderRelativeToSource);
+
                 if (_deduplicate && !dedupeSet.Add(contentInfo))
                 {
                     logger.ZLogDebug($"Skipping duplicate file: {contentInfo.FilePath}");

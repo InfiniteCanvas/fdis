@@ -24,6 +24,7 @@ namespace fdis.Workers
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.ZLogInformation($"Starting File Distributor (fdis)..");
+            logger.ZLogInformation($"Threads: [{_settings.Threads}]");
 
             SetupComponents();
             var unboundedChannelOptions = new UnboundedChannelOptions { SingleReader = false, SingleWriter = true };
@@ -94,7 +95,7 @@ namespace fdis.Workers
 
             // consumers
             var consumerChannels = new Channel<ContentInfo>[_consumers.Length];
-            Broadcaster.CreateBroadcastChannels(processedChannel, consumerChannels, stoppingToken).AddTo(tasks);
+            ChannelUtils.Broadcast(processedChannel, consumerChannels, stoppingToken).AddTo(tasks);
             for (var index = 0; index < _consumers.Length; index++)
             {
                 var consumer = _consumers[index];

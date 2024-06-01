@@ -53,13 +53,9 @@ namespace fdis.Middlewares
             logger.ZLogInformation($"Writing {archive.Entries.Count} entries to archive [{_archiveName}], compressing {archive.TotalUncompressSize >> 20}MiB..");
             archive.SaveTo(_archivePath, CompressionType.Deflate);
             var archiveInfo = new FileInfo(_archivePath);
-            await targetChannel.Writer.WriteAsync(new ContentInfo
-                                                  {
-                                                      FilePath = _archivePath,
-                                                      FolderRelativeToSource = @".\",
-                                                      FileName = _archiveName,
-                                                      Size = archiveInfo.Length
-                                                  },
+            await targetChannel.Writer.WriteAsync(new ContentInfo(FileInfo: new FileInfo(_archivePath),
+                                                                  FolderRelativeToSource: @".\",
+                                                                  FileName: _archiveName),
                                                   cancellationToken);
             targetChannel.Writer.Complete();
             logger.ZLogInformation($"Compressed {_archiveName} from {archive.TotalUncompressSize >> 20}MiB to {archiveInfo.Length >> 20}MiB");

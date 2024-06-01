@@ -52,14 +52,14 @@
         "Mode": "Lossless",
         "Quality": 100
       }
-    },
-    {
-      "Type": "FileArchiver",
-      "Options": {
-        "Regex": "^(?!.*\\.zip$).*$",
-        "ArchiveName": "unarchivedFiles.zip"
-      }
     }
+    //    {
+    //      "Type": "FileArchiver",
+    //      "Options": {
+    //        "Regex": "^(?!.*\\.zip$).*$",
+    //        "ArchiveName": "unarchivedFiles.zip"
+    //      }
+    //    }
   ],
   "Consumers": [
     {
@@ -71,10 +71,8 @@
       }
     },
     {
-      "Type": "FileWriter",
+      "Type": "GofileUploader",
       "Options": {
-        "SaveFolder": "D:\\Repos\\C#\\fdis\\output2",
-        "BufferSize": 81920,
         "Mode": "Overwrite"
       }
     }

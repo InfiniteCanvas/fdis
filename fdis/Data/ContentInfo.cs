@@ -2,28 +2,24 @@
 
 namespace fdis.Data
 {
-    public record ContentInfo
+    /// <summary>
+    ///     Represents content metadata.
+    /// </summary>
+    public record ContentInfo(string FileName, string FolderRelativeToSource, FileInfo FileInfo)
     {
-        /// <summary>
-        ///     When consuming, save the file with this file name
-        /// </summary>
-        public string FileName;
-
         /// <summary>
         ///     Location of the file
         /// </summary>
-        public string FilePath;
+        public string FilePath => FileInfo.FullName;
 
         /// <summary>
-        ///     When consuming, consider recreating this folder structure
+        ///     File size of file at <see cref="FilePath" />
         /// </summary>
-        public string FolderRelativeToSource;
+        public long Size => FileInfo.Length;
 
         /// <summary>
-        ///     File size of file at <see cref="FilePath" /> should be, check for errors
+        ///     Struct for comparing between two ContentInfo based on the content of the file. This is used to identify duplicate files.
         /// </summary>
-        public long Size;
-
         public readonly struct DedupeComparer(int bufferSize = 64, int scans = 5) : IComparer<ContentInfo>
         {
             private readonly long _scans = scans;
@@ -60,14 +56,18 @@ namespace fdis.Data
                     if (!xBuffer.SequenceEqual(yBuffer))
                         return xBuffer.SequenceCompareTo(yBuffer);
 
-                    fx.Position = fx.Length / _scans * i;
-                    fy.Position = fy.Length / _scans * i;
+                    var position = fx.Length / _scans * i;
+                    fx.Position = position;
+                    fy.Position = position;
                 }
 
                 return 0;
             }
         }
 
+        /// <summary>
+        ///     Struct for comparing between two ContentInfo based on their paths.
+        /// </summary>
         public readonly struct PathSorter : IComparer<ContentInfo>
         {
             public int Compare(ContentInfo x, ContentInfo y)

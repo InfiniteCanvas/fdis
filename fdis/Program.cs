@@ -5,6 +5,7 @@ using fdis.Data;
 using fdis.Interfaces;
 using fdis.Middlewares;
 using fdis.Providers;
+using fdis.Utilities;
 using fdis.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,7 @@ using ZLogger.Providers;
 
 namespace fdis
 {
-    internal class Program
+    internal static class Program
     {
         private static bool _error;
 
@@ -52,6 +53,8 @@ namespace fdis
             builder.Services.AddKeyedTransient<IMiddleWare, DeduplicateFiles>("DeduplicateFiles");
             builder.Services.AddKeyedTransient<IMiddleWare, ConvertImagesToWebp>("ConvertImagesToWebp");
             builder.Services.AddKeyedTransient<IConsumer, FileWriter>("FileWriter");
+            builder.Services.AddKeyedTransient<IConsumer, GofileUploader>("GofileUploader");
+            builder.Services.AddKeyedSingleton<TimedRateLimiter>("Gofile");
             builder.Services.AddSingleton<SemaphoreSlim>(provider =>
                                                          {
                                                              var config = provider.GetService<IOptions<AppSettings>>()?.Value;
@@ -59,10 +62,21 @@ namespace fdis
                                                                  ? new SemaphoreSlim(config.Threads)
                                                                  : new SemaphoreSlim(1);
                                                          });
+            builder.Services.ConfigureHttpClients();
+
             builder.Services.AddHostedService<Main>();
             var host = builder.Build();
 
             await host.RunAsync(cts.Token);
+        }
+
+        private static void ConfigureHttpClients(this IServiceCollection services)
+        {
+            services.AddHttpClient("Gofile",
+                                   client =>
+                                   {
+                                       client.BaseAddress = new Uri(@"https://api.gofile.io/servers");
+                                   });
         }
 
         private static void ConfigureLogging(HostApplicationBuilder builder, string[] args)

@@ -79,8 +79,9 @@ namespace fdis.Middlewares
                     await image.SaveAsWebpAsync(path, _encoder, cancellationToken);
                     logger.ZLogDebug($"Converted {contentInfo.FileName} to webp");
                     Result.Success($"Converted {contentInfo.FileName} to webp").AddTo(results);
-                    new FileInfo(path).AddTo(_tempFiles);
-                    await targetChannel.Writer.WriteAsync(contentInfo with { FileName = renamed, FilePath = path }, cancellationToken);
+                    var convertedContent = contentInfo with { FileName = renamed, FileInfo = new FileInfo(path) };
+                    convertedContent.FileInfo.AddTo(_tempFiles);
+                    await targetChannel.Writer.WriteAsync(convertedContent, cancellationToken);
                 }
                 catch (Exception e)
                 {
